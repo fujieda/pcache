@@ -1,0 +1,130 @@
+pcache.pl -- Periodic file caching for Apache httpd
+Copyright (c) JAIST FTP Admins <ftp-admin@jaist.ac.jp>
+
+= Overview
+
+This script realizes file caching for the Apache httpd. It is aimed
+at servers delivering large files. It collects requests, priodically
+choose files to be cached, and asynchronously caches them in SSD. It
+does not cause client's wait for caching files differently from
+mod_disk_cache.
+
+= How to use
+
+It needs a dedicated user account and a directory writable by the
+user. You must create it and set it to $prefix in the script. You
+must set the document root to $docroot, the caching directory in SSD
+to $cacheroot, and the total amount of caches to $cache_total_size.
+
+$cache_total_size should be less than 80% of the real capacity. The
+script often removes files opened by the httpd, and they consume
+space until it closes them. The script can't take the space into
+account, so $cache_total_size should be a reduced value.
+
+You should modify $pipe_buf and $maxsymlinks so they match PIPE_BUF
+and MAXSYMLINKS respectively in /usr/include/sys/param.h in your OS.
+As you have noticed, the script works on Unix-like OS only.
+
+You must install the script in an appropriate directory, change its
+owner to the user, and set the setuid bit on it. You must specify
+the CustomLog directive in httpd.conf as follows.
+
+    CustomLog "|/somewhere/pcache.pl" "%>s %O %f"
+
+You must install the mod_logio to use %O directive in the format
+because %B does not return actual transferred bytes. In addition, I
+recommend you to make the BufferedLogs directive enabled. It can
+much reduce overhead of piped logging.
+
+You must specify RewriteCond and RewriteRule directives in
+httpd.conf to allow the httpd to fetch caches. If $cacheroot is
+"/ftp/.cache", you must specify them as follows.
+
+    RewriteCond /ftp/.cache$1 -f
+    RewriteRule ^(.*)$ /ftp/.cache$1
+
+If there are symbolic links under $docroot, you must set the
+FollowSymLinks option to the $cacheroot directory. The script
+copies these links under $cacheroot if necessary.
+
+When you restart the httpd gracefully, the script start to
+work. After it collects requests for 2 hours, it chooses files to be
+cached and copy them under $cacheroot.
+
+= Configuration
+
+== Virtual hosts
+
+If you have virtual hosts, you should not place any CustomLog
+directives inside <VirtualHost> sections so the script can handle
+all requests. Every document root must be placed under one directry
+and $docroot must have the directory. You must place the RewriteCond
+and RewriteRule directives shown above inside every <VirtualHost>
+section to allow the httpd to get caches.
+
+== Excluding files to be cached
+
+$min_file_size and $exclude_pattern specify files undesirable to be
+cached. The script has a long delay to update caches after the
+originals are updated. This can cause inconsistent states in some
+repositories. If files will be overwritten, you should avoid them
+from being cached.
+
+== Generating statistics
+
+The script periodically generates two files to show statictics. One
+is $prefix/data/hitrate.txt having the hit rate of the cache every 5
+minutes. Another is $prefix/data/raking.json having ratios of
+traffic of each category of files every 30 minutes. You can use
+latter to generate a graph like one you can see in
+http://ftp.jaist.ac.jp/.
+
+You can control the intervals with $hitrate_interval and
+$rank_interval. If you do not need these files, you can set 0 to
+either or both of the variables. If you need ranking.json, you must
+properly define the function path_to_rank to map path names to their
+categories.
+
+=== Cleaning up
+
+The script choose files to be cached and remove ineffective cached
+files every 2 hours, but does not remove empty directries and
+dangling symbolic links in the caching directory. The cleanup
+process of them runs at 6 am by default. This time is specified by
+$cache_cleanup_time.
+
+== Turning algorithm
+
+The script chooses files to be cached based on the exponentital
+moving average of transferred bytes of each file. It calculates the
+average by adding 2% of transferred bytes for 2 hours to 98% of the
+previous average. These parameters are defined by $cache_ratio and
+$cahce_interval.
+
+Too large $cache_ratio and/or too small $cache_interval cause
+frequent replacement of cached files. It resoluts in removing opened
+files and increasing unusable spaces in the caching directory. You
+should avoid the frequent replacement, but too infrequent
+replacement lowers the efficency of caches.
+
+The script generates logs recording addition and removal of cached
+files and the hit rate in $prefix/log. You can consult them to
+adjust those parameters adequate for your site.
+
+The traffic ratios are calculated by the same algolithm and
+diferrent parameters. $rank_ratio and $rank_interval are used in
+this case. If you want to see a short term trend, you can choose
+larger $rank_ratio and/or smaller $rank_interval.
+
+There are some parameters about costs of the script. $max_records
+specifies the number of files recorded for candidates of cached
+files. The script examins whether every candidate still exists or
+not, on choosing cached files. You should not choose too large
+number, but it should be enough larger than the number of cached
+files.
+
+The script collects all requests to calculate the statistics by
+default. You can set the sampling rate of requests with
+$sampling_rate. You can specify an integer more than 1 to pick one
+of the number of requests. A large number reduces not only the CPU
+usage but also collectness of the statistics.
