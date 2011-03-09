@@ -31,7 +31,6 @@ use Fcntl;
 use File::Basename;
 use File::Path;
 use File::Temp ':mktemp';
-use Getopt::Long;
 
 ##### please customize below ######
 my $prefix="/var/opt/pcache"; # working directory for this scrpit
