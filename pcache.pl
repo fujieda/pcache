@@ -332,8 +332,8 @@ sub update_cachelist {
     if ($f !~ $exclude_pattern &&
 	$total + $min_file_size <= $cache_total_size &&
 	($size = (stat($docroot . $f))[12]) &&
-	$size > $min_file_size &&
-	$total + ($size *= 512) <= $cache_total_size) {
+	($size *= 512) > $min_file_size &&
+	$total + $size <= $cache_total_size) {
       $total += $size;
       push(@cache_add_list, $f) unless ($cached_files{$f});
       $cached_files{$f} = 2;
