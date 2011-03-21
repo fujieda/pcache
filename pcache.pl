@@ -147,6 +147,10 @@ sub start_reader {
 sub child_main {
   my $pipe = shift;
   $SIG{ALRM} = sub { $alarm = 1; };
+  $SIG{TERM} = sub {
+    kill TERM => $filesync_pid if $filesync_running;
+    wait; exit(0);
+  };
 
   my $hitrate_vol = 0;
   my $hitrate_vol_hit = 0;
