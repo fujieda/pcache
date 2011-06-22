@@ -53,8 +53,7 @@ my $max_records = 5000; # number of records stored in traffic database
 
 my $cache_interval = 7200; # interval to choose chaced files 
 my $cache_factor = 0.02; # smoothing factor of exponential moving average
-my $rank_interval = 1800; # interval to generate ranking or 0 if not necessary
-my $rank_factor = 0.2;
+my $rank_interval = 300; # interval to generate ranking or 0 if not necessary
 my $hitrate_interval = 300; # interval to generate hit rate or 0 if not necessary
 my $filesync_interval = 1800; # interval to sync cached files with originals
 my $cache_cleanup_time = '06:00'; # time to clean up cache directory
@@ -74,7 +73,6 @@ my $data_dir = "$prefix/data";
 -d $data_dir or mkdir($data_dir) or die $!;
 my $cachelist_file = "$data_dir/cachefiles.txt";
 my $cachedb_file = "$data_dir/cachedb.txt";
-my $rankdb_file = "$data_dir/rankdb.txt";
 my $rankjson_file = "$data_dir/ranking.json";
 my $hitrate_file = "$data_dir/hitrate.txt";
 my $log_dir = "$prefix/log";
@@ -155,7 +153,6 @@ sub child_main {
   my $hitrate_vol = 0;
   my $hitrate_vol_hit = 0;
   %cachedb = read_db($cachedb_file);
-  %rankdb = read_db($rankdb_file) if $rank_time;
   read_cachelist();
 
   set_alarm($cache_time, $filesync_time, $rank_time, $hitrate_time, $cleanup_time);
@@ -171,7 +168,7 @@ sub child_main {
     $cache_vol_hit += $vol if $root eq $cacheroot;
     $cache_vol += $vol;
     $cachedb{$req} += $vol * $cache_factor;
-    $rankdb{$req} += $vol * $rank_factor if $rank_time;
+    $rankdb{$req} += $vol if $rank_time;
     next unless $alarm;
 
     my $time = time;
@@ -184,7 +181,8 @@ sub child_main {
       print(localtime() .": hitrate\n") if $debug;
     }
     if ($rank_time && $time >= $rank_time) {
-      gen_rankjson(update_rankdb());
+      gen_rankjson(%rankdb);
+      undef(%rankdb);
       $rank_time = $time + $rank_interval;
     }
     if ($time >= $cache_time) {
@@ -256,32 +254,13 @@ sub set_alarm {
   alarm $min;
 }
 
-sub update_rankdb
-{
-  my $num_records = 0;
-  my $total = 0;
+sub gen_rankjson {
   my %data;
-  open(DATA, ">", $rankdb_file . ".new") or die $!;
-  foreach (sort { $rankdb{$b} <=> $rankdb{$a} } keys %rankdb) {
+  my $total = 0;
+  for (keys %rankdb) {
     $data{&path_to_rank($_)} += $rankdb{$_};
     $total += $rankdb{$_};
-    if ($num_records < $max_records) {
-      $num_records++;
-      $rankdb{$_} *= (1 - $rank_factor);
-      print DATA $_ .' '.  $rankdb{$_} . "\n";
-    } else {
-      delete $rankdb{$_};
-    }
   }
-  close(DATA);
-  rename($rankdb_file, $rankdb_file . ".old");
-  rename($rankdb_file . ".new", $rankdb_file);
-  print(localtime() .": update rankdb\n") if $debug;
-  return $total, %data;
-}
-
-sub gen_rankjson {
-  my ($total, %data) = @_;
   my @order = sort { $data{$b} <=> $data{$a} } keys %data;
   open my $json, '>', $rankjson_file or die $!;
   print $json '[ ';
