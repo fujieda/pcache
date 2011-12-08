@@ -189,11 +189,13 @@ sub child_main {
     }
     if ($time >= $cache_time) {
       update_cachedb();
-      unless ($filesync_running) {
-	update_cachelist(); 
-	run_filesync();
-	$filesync_time = $time + $filesync_interval;
+      if ($filesync_running) {
+	kill TERM => $filesync_pid;
+	wait;
       }
+      update_cachelist(); 
+      run_filesync();
+      $filesync_time = $time + $filesync_interval;
       $cache_time = $time + $cache_interval;
     }
     if ($time >= $filesync_time) {
