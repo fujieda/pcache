@@ -39,7 +39,7 @@ my $docroot = "/ftp"; # DocumentRoot
 my $cacheroot = "/ftp/.cache"; # cache directory writable by this script
 my $cache_total_size = 260 * 1000 * 1000 * 1000; # cache size
 
-my $pipe_buf = 5120; # PIPE_BUF defined in sys/param.h
+my $pipe_buf = 5120 * 10; # enough larger value than PIPE_BUF defined in sys/param.h
 my $maxsymlinks = 20; # MAXSYMLINKS defined in sys/param.h 
 my $cp_cmd = '/usr/bin/cp';
 my $cp_opt = '-p';
@@ -127,7 +127,7 @@ sub start_reader {
     my $count = 0;
     while (<STDIN>) {
       next unless m(^2\d\d (\d+) ($cacheroot|$docroot)(.+[^/\n])$);
-      next if ++$count < $sampling_rate;
+      next if $count++ < $sampling_rate;
       $count = 0;
       $buf .= "$1 $2 $3\n";
       $len = length($buf);
@@ -159,7 +159,6 @@ sub child_main {
   read_cachelist();
 
   set_alarm($cache_time, $filesync_time, $rank_time, $hitrate_time, $cleanup_time);
-
   while (<$pipe>) {
     /^(\d+) ([^ ]+) (.*)$/;
     my ($vol, $root, $req) = ($1, $2, $3);
