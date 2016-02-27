@@ -318,10 +318,9 @@ my @cache_delete_list;
 sub update_cachelist {
   $update_start = time;
   my $total = 0;
-  my %symlink;
   my %resolved;
   for my $f (keys %cachedb) {
-    my $real = resolve_symlink($f, \%symlink, 1);
+    my $real = resolve_symlink($f, 1);
     if ($real ne $f) {
       $cachedb{$real} += $cachedb{$f};
       delete $cachedb{$f};
@@ -339,7 +338,7 @@ sub update_cachelist {
       push(@cache_add_list, $f) unless ($cached_files{$f});
       $cached_files{$f} = 2;
       next unless $resolved{$f};
-      resolve_symlink($_, \%symlink, 0) for @{$resolved{$f}};
+      resolve_symlink($_, 0) for @{$resolved{$f}};
     }
   }
   open(my $fh, ">", $cachelist_file . ".new") or die $!;
@@ -382,7 +381,7 @@ sub output_cache_report {
 
 # resolve relative symlinks and create symlinks on cache directory
 sub resolve_symlink {
-  my ($req, $cache, $dryrun) = @_;
+  my ($req, $dryrun) = @_;
   my $symlink = 0;
   my @resolved;
   $req =~ s(/+)(/)g; # eliminate redundant slashs
@@ -396,27 +395,15 @@ sub resolve_symlink {
       next;
     }
     my $path = join('/', @resolved, $name);
-    my $link = $cache->{$path};
-    if ($link) {
-      if ($link eq $path) { # not symlink
-	push(@resolved, $name);
-	next;
-      }
+    if (-l $docroot . $path) {
       return $req if (++$symlink > $maxsymlinks); # ELOOP
+      my $link = readlink($docroot . $path) or return $req;
+      return $req if $link =~ m(^/);
+      create_symlink($path, $link) unless $dryrun;
+      unshift(@left, split(m(/), $link));
     } else {
-      if (-l $docroot . $path) {
-	return $req if (++$symlink > $maxsymlinks); # ELOOP
-	$link = readlink($docroot . $path) or return $req;
-	return $req if $link =~ m(^/);
-	$cache->{$path} = $link;
-	create_symlink($path, $link) unless $dryrun;
-      } else {
-	$cache->{$path} = $path;
-	push(@resolved, $name);
-	next;
-      }
+      push(@resolved, $name);
     }
-    unshift(@left, split(m(/), $link));
   }
   return join('/', @resolved);
 }
