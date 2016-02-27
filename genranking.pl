@@ -36,7 +36,7 @@ my $prefix="/var/opt/pcache"; # working directory for this scrpit
 my $docroot = "/ftp"; # DocumentRoot
 my $pipe_buf = 5120 * 10; # enough larger value than PIPE_BUF defined in sys/param.h
 my $maxsymlinks = 20; # MAXSYMLINKS defined in sys/param.h 
-my $sampling_rate = 10; # sampling rate (1/N) of requests
+my $sampling_rate = 100; # sampling rate (1/N) of requests
 my $max_records = 5000; # number of records stored in traffic database
 my $rank_interval = 600; # interval to generate ranking
 my $rank_factor = 0.4;
@@ -45,6 +45,7 @@ sub path_to_rank {
   $_ = shift;
   return $1 if m{^/pub/Linux/([^-/]+)};
   return $1 if m{^/pub/(PC-BSD)/};
+  return "OpenOffice" if m{^/pub/sourceforge/o/project/op/openofficeorg.mirror};
   return $1 if m{^/pub/([^-/]+)};
   return "others";
 }

@@ -37,24 +37,24 @@ my $prefix="/var/opt/pcache"; # working directory for this scrpit
 
 my $docroot = "/ftp"; # DocumentRoot
 my $cacheroot = "/ftp/.cache"; # cache directory writable by this script
-my $cache_total_size = 260 * 1000 * 1000 * 1000; # cache size
+my $cache_total_size = 460 * 1024 * 1024 * 1024; # cache size
 
 my $pipe_buf = 5120 * 10; # enough larger value than PIPE_BUF defined in sys/param.h
 my $maxsymlinks = 20; # MAXSYMLINKS defined in sys/param.h 
 my $cp_cmd = '/usr/bin/cp';
 my $cp_opt = '-p';
 
-my $min_file_size = 100000; # minimum file size to be cached
+my $min_file_size = 10 * 1000 * 1000; # minimum file size to be cached
 # pattern to exlude files from bing cached
-my $exclude_pattern = qr{(?:\.(?:xml|sqlite)(?:\.gz|\.bz2)?|/(?:In)?Release|/(?:Packages|Sources|Contents-\w+)(?:\.gz|\.bz2)?)$};
+my $exclude_pattern = qr{(?:\.(?:xml|sqlite)(?:\.gz|\.bz2)?|/(?:In)?Release|/(?:Packages|Sources|Contents-\w+)(?:\.gz|\.bz2)?)$|/boookends/};
 
-my $sampling_rate = 1; # sampling rate (1/N) of requests
+my $sampling_rate = 10; # sampling rate (1/N) of requests
 my $max_records = 5000; # number of records stored in traffic database
 
 my $cache_interval = 7200; # interval to choose chaced files 
 my $cache_factor = 0.02; # smoothing factor of exponential moving average
-my $rank_interval = 1800; # interval to generate ranking or 0 if not necessary
-my $rank_factor = 0.2;
+my $rank_interval = 600; # interval to generate ranking or 0 if not necessary
+my $rank_factor = 0.4;
 my $hitrate_interval = 300; # interval to generate hit rate or 0 if not necessary
 my $filesync_interval = 1800; # interval to sync cached files with originals
 my $cache_cleanup_time = '06:00'; # time to clean up cache directory
@@ -64,6 +64,7 @@ sub path_to_rank {
   $_ = shift;
   return $1 if m{^/pub/Linux/([^-/]+)};
   return $1 if m{^/pub/(PC-BSD)/};
+  return "OpenOffice" if m{^/pub/sourceforge/o/project/op/openofficeorg.mirror};
   return $1 if m{^/pub/([^-/]+)};
   return "others";
 }
