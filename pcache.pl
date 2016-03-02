@@ -429,20 +429,28 @@ sub create_symlink {
 
 sub cleanup_cache {
   print(localtime() .": cache cleanup\n") if $debug;
-  traverse_tree($cacheroot, $cacheroot, {});
+  traverse_tree($cacheroot, {});
   print(localtime() .": done cache cleanup\n") if $debug;
 }
 
 sub traverse_tree {
-  my ($dir, $real, $dirhash) = @_;
+  my ($dir, $dirhash) = @_;
   opendir(my $dh, $dir) or return;
   my @names = readdir($dh);
   closedir($dh);
   for (@names) {
     next if /^\.{1,2}\z/;
-    my $full = (-l "$real/$_" ? follow_symlink("$real/$_") : "$real/$_");
-    if (-d $full) {
-      traverse_tree("$dir/$_", $full, $dirhash);
+    my $full = "$dir/$_";
+    if (-l $full) {
+      if (stat($full)) {
+	$dirhash->{$dir} = 1
+      } else {
+        #dangling symlink
+        unlink("$dir/$_");
+        print "unlink dangling symlink $dir/$_\n" if $debug;
+      }
+    } elsif (-d _) {
+      traverse_tree("$dir/$_", $dirhash);
       if ($dirhash->{"$dir/$_"}) {
 	$dirhash->{$dir} = 1
       } else {
@@ -463,10 +471,6 @@ sub traverse_tree {
 	unlink("$full");
 	print "unlink $full\n" if $debug;
       }
-    } else {
-      #dangling symlink
-      unlink("$dir/$_");
-      print "unlink dangling symlink $dir/$_\n" if $debug;
     }
   }
 }
